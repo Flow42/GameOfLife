@@ -40,7 +40,6 @@ namespace GameOfLife
             int y = (int)(pos.Y / g.ScaleX);
             g.GameState[y, x] = !g.GameState[y, x];
             g.RaisePropertyChanged("GameState");
-            // MessageBox.Show(pos.ToString());
         }
 
         private void CreateBmp(object sender, RoutedEventArgs e)
@@ -238,32 +237,41 @@ namespace GameOfLife
             int n = cells.GetLength(1);
             int cnt = 0;
             // values are initially set to false, meaning false values needn't be set explicitly
-            // TODO take care of padding
             bool[,] result = new bool[m, n];
-            for (int i=1; i<m-1; i++)
+            bool[,] padded = new bool[m + 2, n + 2];
+            // pad the given array with a one pixel border
+            for(int i = 0; i < m; i++)
             {
-                for (int j=1; j<n-1; j++)
+                for(int j = 0; j < n; j++)
+                {
+                    padded[i + 1, j + 1] = cells[i, j];
+                }
+            }
+            // apply the rules on the padded array, shifting all indices in the padded array by +1 while iterating over result
+            for (int i=0; i<m; i++)
+            {
+                for (int j=0; j<n; j++)
                 {
                     // above
-                    if (cells[i-1, j]) {cnt++; }
+                    if (padded[i, j+1]) {cnt++; }
                     // left above
-                    if (cells[i - 1, j - 1]) { cnt++; }
+                    if (padded[i, j]) { cnt++; }
                     // left
-                    if (cells[i, j-1]) {cnt++; }
+                    if (padded[i+1, j]) {cnt++; }
                     // left below
-                    if (cells[i + 1, j - 1]) { cnt++; }
+                    if (padded[i + 2, j]) { cnt++; }
                     // below
-                    if (cells[i + 1, j]) { cnt++; }
+                    if (padded[i + 2, j+1]) { cnt++; }
                     // right below
-                    if (cells[i + 1, j + 1]) { cnt++; }
+                    if (padded[i + 2, j + 2]) { cnt++; }
                     // right
-                    if (cells[i, j + 1]) { cnt++; }
+                    if (padded[i+1, j + 2]) { cnt++; }
                     // right above
-                    if (cells[i-1, j+1]) {cnt++; }
+                    if (padded[i, j+2]) {cnt++; }
                     // a live cell with 2 or 3 neighbors lives on
-                    if (cells[i,j] && cnt==2 || cnt == 3) { result[i, j] = true; }
+                    if (padded[i+1,j+1] && cnt==2 || cnt == 3) { result[i, j] = true; }
                     // a dead cell with 3 neighbors lives in the next step
-                    if (!cells[i,j] && cnt==3) { result[i, j] = true; }
+                    if (!padded[i+1,j+1] && cnt==3) { result[i, j] = true; }
                     // reset counter variable
                     cnt = 0;
                 }
