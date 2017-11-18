@@ -70,13 +70,14 @@ namespace GameOfLife
         {
             await Task.Delay(duration);
         }
-
+        // TODO also implement stop function
         private async void RunGame(object sender, RoutedEventArgs e)
         {
             for (int i = 0; i < g.Epochs; i++)
             {
                 await Delay(1000);
-                g.CurrentEpoch = i;
+                // adjust for zero based counting
+                g.CurrentEpoch = i + 1;
                 g.RaisePropertyChanged("CurrentEpoch");
                 g.MakeTurn();
             }
@@ -93,32 +94,48 @@ namespace GameOfLife
         public int ScaleX { get; set; }
         public int ScaleY { get; set; }
 
-        private bool[,] RectScale(bool[,] array)
+        private bool[,] RectScale(bool[,] array, bool scaleUp = true)
         {
             int scaleX = ScaleX;
             int scaleY = ScaleY;
             int height = array.GetLength(0);
             int width = array.GetLength(1);
-            int newHeight = height * scaleX;
-            int newWidth = width * scaleY;
-            bool[,] scaledArray = new bool[newHeight, newWidth];
-            for (int i = 0; i < newHeight; i += scaleX)
+            if (scaleUp)
             {
-                for (int j = 0; j < newWidth; j += scaleY)
+                int newHeight = height * scaleX;
+                int newWidth = width * scaleY;
+                bool[,] scaledArray = new bool[newHeight, newWidth];
+                for (int i = 0; i < newHeight; i += scaleX)
                 {
-                    for (int x = 0; x < scaleX; x++)
+                    for (int j = 0; j < newWidth; j += scaleY)
                     {
-                        for (int y = 0; y < scaleY; y++)
+                        for (int x = 0; x < scaleX; x++)
                         {
-                            if (array[i / scaleX, j / scaleY])
+                            for (int y = 0; y < scaleY; y++)
                             {
-                                scaledArray[i + x, j + y] = true;
+                                scaledArray[i + x, j + y] = array[i / scaleX, j / scaleY];
                             }
                         }
                     }
                 }
+                return scaledArray;
             }
-            return scaledArray;
+            else
+            {
+                int newHeight = height / scaleX;
+                int newWidth = width / scaleY;
+                bool[,] scaledArray = new bool[newHeight, newWidth];
+                for(int i = 0; i < newHeight; i++)
+                {
+                    for(int j = 0; j < newWidth; j++)
+                    {
+                        // the given array has boxes of size ScaleX*ScaleY, with every pixel
+                        // holding the same value, so use the upper right pixel value for the downscaled array
+                        scaledArray[i, j] = array[i * scaleX, j * scaleY];
+                    }
+                }
+                return scaledArray;
+            }
         }
 
         public object Convert(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
@@ -147,7 +164,7 @@ namespace GameOfLife
                 return null;
             }
         }
-        // TODO: Adjust for scaling back
+
         public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
         {
             if (value.GetType() == typeof(BitmapSource))
@@ -156,7 +173,8 @@ namespace GameOfLife
                 int height = bmpSrc.PixelHeight;
                 int width = bmpSrc.PixelWidth;
                 PixelFormat pf = bmpSrc.Format;
-                //int stride = (width * pf.BitsPerPixel + 7) / 8;
+                // stride formula is: (width * pf.BitsPerPixel + 7) / 8. 
+                // Since the Gray8 Pixelformat uses one byte per pixel it simplifies to:
                 int stride = width;
                 Int32Rect rect = new Int32Rect(0, 0, width, height);
                 byte[,] pixelData = new byte[height, width];
@@ -172,7 +190,7 @@ namespace GameOfLife
                         }
                     }
                 }
-                return array;
+                return RectScale(array, false);
             }
             else
             {
