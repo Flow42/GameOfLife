@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -14,6 +15,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
 
+// TODO Create a stop Button
 namespace GameOfLife
 {
     /// <summary>
@@ -21,12 +23,13 @@ namespace GameOfLife
     /// </summary>
     public partial class MainWindow : Window
     {
-		Game g = new Game { Height = 50, Width = 50, ScaleX = 8, ScaleY = 8, Epochs=20 };
+		Game g = new Game { Height = 50, Width = 50, ScaleX = 8, ScaleY = 8, Epochs=20, StopGameTokenSource = new CancellationTokenSource()};
         public MainWindow()
         {
             InitializeComponent();
             this.DataContext = g;
         }
+
         /// <summary>
         /// Applies the logical not of the GameState entry, that is implied by the clicked position
         /// </summary>
@@ -44,14 +47,10 @@ namespace GameOfLife
 
         private void CreateBmp(object sender, RoutedEventArgs e)
         {
-            // if an image has been added already, remove it
-            for (int i = 0; i < VisualTreeHelper.GetChildrenCount(GameGrid); i++)
+            
+            if(!(GameViewBox.Child is null))
             {
-                Visual childVisual = (Visual)VisualTreeHelper.GetChild(GameGrid, i);
-                if (childVisual is Image)
-                {
-                    GameGrid.Children.Remove((UIElement)childVisual);
-                }
+                g.StopGameTokenSource.Cancel();
             }
             g.InitGameState();
             Image img = new Image();
@@ -66,20 +65,29 @@ namespace GameOfLife
             g.GameVisual = img;
         }
 
-        async Task Delay(int duration)
-        {
-            await Task.Delay(duration);
-        }
-        // TODO also implement stop function
         private async void RunGame(object sender, RoutedEventArgs e)
         {
+            CancellationToken token = g.StopGameTokenSource.Token;
             for (int i = 0; i < g.Epochs; i++)
             {
-                await Delay(1000);
-                // adjust for zero based counting
-                g.CurrentEpoch = i + 1;
-                g.RaisePropertyChanged("CurrentEpoch");
-                g.MakeTurn();
+                await Task.Delay(1000);
+                if (!token.IsCancellationRequested)
+                {
+                    // adjust for zero based counting
+                    g.CurrentEpoch = i + 1;
+                    g.RaisePropertyChanged("CurrentEpoch");
+                    g.MakeTurn();
+                }
+                else
+                {
+                    // reset the cancellationtoken, so the function runs again
+                    g.StopGameTokenSource.Dispose();
+                    g.StopGameTokenSource = new CancellationTokenSource();
+                    // reset the currentEpoch value and report it to GUI
+                    g.CurrentEpoch = 0;
+                    g.RaisePropertyChanged("CurrentEpoch");
+                    return;
+                }
             }
             MessageBox.Show("Finished");
         }
@@ -204,6 +212,7 @@ namespace GameOfLife
     /// </summary>
     public class Game : INotifyPropertyChanged
     {
+        // TODO implement status box (showing what the program currently does)
         public int Height { get; set; }
         public int Width { get; set; }
         public int ScaleX { get; set; }
@@ -213,13 +222,18 @@ namespace GameOfLife
         public bool[,] GameState { get; set; }
         public event PropertyChangedEventHandler PropertyChanged;
         public Image GameVisual { get; set; }
+        public CancellationTokenSource StopGameTokenSource { get; set; }
+        
+        public void GameCancel()
+        {
+            StopGameTokenSource.Cancel(true);
+        }
 
-        // TODO implement means of initialization by adding default patterns (glider etc.)
         public void RaisePropertyChanged(string propertyName)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
-
+        // TODO implement means of initialization by adding default patterns (glider etc.)
         public void InitGameState()
         {
             this.GameState = new bool[this.Height, this.Width];
